@@ -8,7 +8,6 @@ requests
 pillow
 gtts
 librosa
-pymol
 PySimpleGUI
 pydub
 molecular_nodes
