@@ -10,7 +10,6 @@ gtts
 librosa
 PySimpleGUI
 pydub
-molecular_nodes
 flask
 sentry-sdk
 stripe
