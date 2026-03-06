@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link href="https://vjs.zencdn.net/8.6.1/video-js.css" rel="stylesheet">
+    <script src="https://vjs.zencdn.net/8.6.1/video.min.js"></script>
+</head>
+<body>
+    <video id="my-video" class="video-js" controls preload="auto" width="640" height="360" data-setup="{}">
+        <source src="/video/{{ filename }}" type="video/mp4">
+    </video>
+    <script>
+        var player = videojs('my-video');
+        player.ready(() => {
+            let speed = 1;
+            player.controlBar.addChild('button', { text: 'Speed: ' + speed + 'x', clickHandler: () => {
+                speed = speed === 1 ? 2 : 1;
+                player.playbackRate(speed);
+                this.textContent = 'Speed: ' + speed + 'x';
+            }});
+            let holdTimer;
+            player.on('touchstart', () => {
+                holdTimer = setTimeout(() => player.playbackRate(2), 500);
+            });
+            player.on('touchend', () => {
+                clearTimeout(holdTimer);
+                player.playbackRate(speed);
+            });
+            fetch('/metadata/{{ filename.split('.')[0] }}').then(res => res.json()).then(meta => {
+                meta.overlays.forEach(overlay => {
+                    player.addChild('button', { text: overlay.label, startTime: overlay.time, clickHandler: () => window.open(overlay.vr_link, '_blank') });
+                });
+            });
+        });
+    </script>
+</body>
+</html>
