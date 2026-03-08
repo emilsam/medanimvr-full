@@ -71,6 +71,38 @@ class MedicalAnimationSystem:
             logging.error(f"Error extracting structure: {e}")
             return {}
 
+    def process_book(self, pdf_path: str, languages: List[str] = ['en'], num_processes: int = 1, resolution: str = '1080p'):
+        logging.info(f"Starting process_book for {pdf_path} with languages={languages}, resolution={resolution}")
+        try:
+            structure = self.extract_book_structure(pdf_path)
+            sections = []
+            for chapter, headings in structure.items():
+                for heading, subheadings in headings.items():
+                    sections.append((pdf_path, chapter, heading))
+                    for sub in subheadings:
+                        sections.append((pdf_path, chapter, f"{heading} - {sub}"))
+
+            logging.info(f"Found {len(sections)} sections to process")
+
+            # Process only the first section for quick testing
+            if sections:
+                pdf_path, chapter, section = sections[0]
+                text = self.extract_section_text(pdf_path, section)  # You need to implement this
+                levels = ['molecular', 'cellular', 'anatomical']
+                for level in levels:
+                    script = self.generate_animation_script(text, level, 'en')  # You need to implement this
+                    topic = f"{chapter} - {section}"
+                    for lang in languages:
+                        video_path = self.create_animated_video(script, topic, level, lang, resolution)  # You need to implement this
+                        logging.info(f"Generated video: {video_path}")
+            else:
+                logging.warning("No sections found in book structure")
+
+            logging.info("process_book completed")
+        except Exception as e:
+            logging.error(f"process_book failed: {str(e)}", exc_info=True)
+            raise
+
     def create_scene_clip(self, scene: Dict, level: str, scene_index: int, language: str, resolution: str = '4k'):
         try:
             extras = scene.get('extras', '')
@@ -135,10 +167,15 @@ def upload_pdf():
             <a href="/">Back to upload</a>
             """, 200
         except Exception as e:
-            logging.error(f"Processing failed: {str(e)}")
-            return f"Processing failed: {str(e)}<br><a href="/">Back</a>", 500
+            logging.error(f"Processing failed: {str(e)}", exc_info=True)
+            return f"""
+            <h1>Processing Failed</h1>
+            <p>Error: {str(e)}</p>
+            <p>Check Render Logs for details.</p>
+            <a href="/">Back to upload</a>
+            """, 500
     return "Invalid file (must be .pdf)", 400
-    
+
 if __name__ == "__main__":
     system = MedicalAnimationSystem(api_key=os.getenv('OPENAI_API_KEY', 'your_api_key_here'))
     port = int(os.getenv('PORT', 5000))
