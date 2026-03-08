@@ -122,16 +122,23 @@ def upload_pdf():
     if file and file.filename.lower().endswith('.pdf'):
         pdf_path = os.path.join('/tmp', file.filename)
         file.save(pdf_path)
-        # TODO: call your processing here (uncomment when ready)
-        # system.process_book(pdf_path, languages=['en'], resolution='1080p')
-        return f"""
-        <h1>Success!</h1>
-        <p>PDF uploaded: {file.filename}</p>
-        <p>Processing started (check Render logs for output paths).</p>
-        <a href="/">Back to upload</a>
-        """, 200
-    return "Invalid file (must be .pdf)", 400
+        logging.info(f"PDF saved to {pdf_path} - starting processing")
 
+        system = MedicalAnimationSystem(os.getenv('OPENAI_API_KEY'))
+        try:
+            system.process_book(pdf_path, languages=['en'], num_processes=1, resolution='1080p')
+            logging.info("Processing completed successfully")
+            return f"""
+            <h1>Success!</h1>
+            <p>PDF uploaded and processing finished: {file.filename}</p>
+            <p>Check Render Logs for output paths (search for "animated_videos" or video files).</p>
+            <a href="/">Back to upload</a>
+            """, 200
+        except Exception as e:
+            logging.error(f"Processing failed: {str(e)}")
+            return f"Processing failed: {str(e)}<br><a href="/">Back</a>", 500
+    return "Invalid file (must be .pdf)", 400
+    
 if __name__ == "__main__":
     system = MedicalAnimationSystem(api_key=os.getenv('OPENAI_API_KEY', 'your_api_key_here'))
     port = int(os.getenv('PORT', 5000))
