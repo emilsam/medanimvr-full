@@ -64,7 +64,7 @@ class MedicalAnimationSystem:
             Text: {full_text[:10000]}
             Output as JSON: {{"chapter": {{"heading": ["subheading1", "subheading2"]}}}}
             """
-            response = self.llm_client.chat.completions.create(model="gpt-4", messages=[{"role": "user", "content": prompt}])
+            response = self.llm_client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
             structure = json.loads(response.choices[0].message.content)
             return structure
         except Exception as e:
