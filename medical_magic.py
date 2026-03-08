@@ -71,10 +71,7 @@ class MedicalAnimationSystem:
             logging.error(f"Error extracting structure: {e}")
             return {}
 
-    # ... (add back other methods like extract_section_text, translate_text, generate_animation_script, etc. from previous versions if needed)
-
     def create_scene_clip(self, scene: Dict, level: str, scene_index: int, language: str, resolution: str = '4k'):
-        # This is the function that was missing its body indentation
         try:
             extras = scene.get('extras', '')
             res_map = {'4k': (3840, 2160), '1080p': (1920, 1080)}
@@ -87,8 +84,7 @@ class MedicalAnimationSystem:
                 frames = [np.array(Image.new('RGB', (width, height), color='blue'))] * num_frames
                 return ImageSequenceClip(frames, fps=fps)
 
-            # Add your anatomical and manim logic here if needed
-            # For now: placeholder
+            # Placeholder for other levels (add Blender/Manim logic later)
             frames = [np.array(Image.new('RGB', (width, height), color='green'))] * num_frames
             return ImageSequenceClip(frames, fps=fps)
 
@@ -97,22 +93,23 @@ class MedicalAnimationSystem:
             frames = [np.array(Image.new('RGB', (width, height), color='red'))] * num_frames
             return ImageSequenceClip(frames, fps=fps)
 
-    # Add back other methods as needed (generate_scene_audio, create_animated_video, process_book, etc.)
-
-if __name__ == "__main__":
-    system = MedicalAnimationSystem(api_key=os.getenv('OPENAI_API_KEY', 'your_api_key_here'))
-    port = int(os.getenv('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
-
+# Flask Routes
 @app.route('/')
 def index():
     return """
-    <h1>MedAnimVR is Live!</h1>
-    <p>Upload a PDF to generate medical animations.</p>
-    <form method="post" enctype="multipart/form-data" action="/upload">
-        <input type="file" name="pdf">
-        <input type="submit" value="Upload and Process">
-    </form>
+    <html>
+    <head><title>MedAnimVR</title></head>
+    <body style="font-family: Arial; text-align: center; padding: 50px;">
+        <h1>MedAnimVR is Running! 🚀</h1>
+        <p>Upload a small PDF to generate medical animations (anatomical scenes work; molecular is placeholder for now).</p>
+        <form method="post" enctype="multipart/form-data" action="/upload">
+            <input type="file" name="pdf" accept=".pdf" required>
+            <br><br>
+            <input type="submit" value="Upload & Process PDF" style="padding: 10px 20px; font-size: 16px;">
+        </form>
+        <p><small>Check Render logs for processing status.</small></p>
+    </body>
+    </html>
     """
 
 @app.route('/upload', methods=['POST'])
@@ -121,7 +118,21 @@ def upload_pdf():
         return "No file uploaded", 400
     file = request.files['pdf']
     if file.filename == '':
-        return "No selected file", 400
-    # Save and process (stub - expand later)
-    file.save(os.path.join('/tmp', file.filename))
-    return "PDF uploaded - processing started (check logs)", 200
+        return "No file selected", 400
+    if file and file.filename.lower().endswith('.pdf'):
+        pdf_path = os.path.join('/tmp', file.filename)
+        file.save(pdf_path)
+        # TODO: call your processing here (uncomment when ready)
+        # system.process_book(pdf_path, languages=['en'], resolution='1080p')
+        return f"""
+        <h1>Success!</h1>
+        <p>PDF uploaded: {file.filename}</p>
+        <p>Processing started (check Render logs for output paths).</p>
+        <a href="/">Back to upload</a>
+        """, 200
+    return "Invalid file (must be .pdf)", 400
+
+if __name__ == "__main__":
+    system = MedicalAnimationSystem(api_key=os.getenv('OPENAI_API_KEY', 'your_api_key_here'))
+    port = int(os.getenv('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
