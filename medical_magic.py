@@ -37,13 +37,12 @@ from firebase_admin import credentials
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 app = Flask(__name__)
-# sentry_sdk.init(
-    dsn=os.getenv('SENTRY_DSN', 'your-sentry-dsn'),
-    integrations=[FlaskIntegration()],
-    traces_sample_rate=1.0,
-    environment="production"
-)
-# Disabled for now - causes crash if DSN is blank
+# sentry_sdk.init(  # Disabled to prevent startup crash - add real DSN in Render Environment vars later if needed
+#     dsn=os.getenv('SENTRY_DSN', 'your-sentry-dsn'),
+#     integrations=[FlaskIntegration()],
+#     traces_sample_rate=1.0,
+#     environment="production"
+# )
 # If you want Sentry later, set a real DSN in Render Environment vars
 
 class MedicalAnimationSystem:
