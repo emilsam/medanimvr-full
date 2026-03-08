@@ -103,3 +103,25 @@ if __name__ == "__main__":
     system = MedicalAnimationSystem(api_key=os.getenv('OPENAI_API_KEY', 'your_api_key_here'))
     port = int(os.getenv('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
+@app.route('/')
+def index():
+    return """
+    <h1>MedAnimVR is Live!</h1>
+    <p>Upload a PDF to generate medical animations.</p>
+    <form method="post" enctype="multipart/form-data" action="/upload">
+        <input type="file" name="pdf">
+        <input type="submit" value="Upload and Process">
+    </form>
+    """
+
+@app.route('/upload', methods=['POST'])
+def upload_pdf():
+    if 'pdf' not in request.files:
+        return "No file uploaded", 400
+    file = request.files['pdf']
+    if file.filename == '':
+        return "No selected file", 400
+    # Save and process (stub - expand later)
+    file.save(os.path.join('/tmp', file.filename))
+    return "PDF uploaded - processing started (check logs)", 200
