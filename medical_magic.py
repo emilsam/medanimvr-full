@@ -9,6 +9,8 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from Bio import PDB
 from Bio.PDB import PDBList
+
+# Safe MoviePy import with fallback
 try:
     from moviepy.editor import VideoFileClip, AudioFileClip, ImageSequenceClip, concatenate_videoclips, CompositeVideoClip, TextClip
     from moviepy.video.tools.subtitles import SubtitlesClip
@@ -47,36 +49,57 @@ class MedicalAnimationSystem:
         self.web_search_client = requests
         self.manager = multiprocessing.Manager()
         self.script_cache = self.manager.dict()
-        # self.bgm_path = os.path.join(self.output_dir, "bgm.mp3")  # Disabled - add working URL later
-        # self._download_bgm()  # Disabled - 404 error
         self.watermark_text = os.getenv('WATERMARK_TEXT', 'Powered by MedicalAnimSys')
         self.watermark_font_size = int(os.getenv('WATERMARK_FONT_SIZE', '24'))
         self.ar_manifest = {}
-        # self.s3_client = boto3.client('s3')  # Uncomment and set AWS env vars if needed
 
     def extract_book_structure(self, pdf_path: str) -> Dict:
-        # ... (keep as is, omitted for brevity in this message)
+        if not os.path.exists(pdf_path):
+            raise FileNotFoundError(f"PDF not found: {pdf_path}")
+        try:
+            with pdfplumber.open(pdf_path) as pdf:
+                full_text = "".join(page.extract_text() or "" for page in pdf.pages)
+            prompt = f"""
+            Extract book structure (chapters, headings, subheadings) from:
+            Text: {full_text[:10000]}
+            Output as JSON: {{"chapter": {{"heading": ["subheading1", "subheading2"]}}}}
+            """
+            response = self.llm_client.chat.completions.create(model="gpt-4", messages=[{"role": "user", "content": prompt}])
+            structure = json.loads(response.choices[0].message.content)
+            return structure
+        except Exception as e:
+            logging.error(f"Error extracting structure: {e}")
+            return {}
 
-    # Keep all other methods as in previous version (extract_section_text, supplement_with_web_info, translate_text, generate_animation_script, etc.)
+    # ... (add back other methods like extract_section_text, translate_text, generate_animation_script, etc. from previous versions if needed)
 
     def create_scene_clip(self, scene: Dict, level: str, scene_index: int, language: str, resolution: str = '4k'):
-        # ... (keep as is, with placeholder for molecular/cellular)
+        # This is the function that was missing its body indentation
+        try:
+            extras = scene.get('extras', '')
+            res_map = {'4k': (3840, 2160), '1080p': (1920, 1080)}
+            width, height = res_map.get(resolution, (3840, 2160))
+            fps = 24
+            num_frames = scene['duration'] * fps
 
-    # Keep generate_scene_audio, generate_subtitles, generate_srt_file, create_animated_video, process_book, etc.
+            if level in ['molecular', 'cellular']:
+                logging.info("Using placeholder for molecular/cellular scene (PyMOL disabled)")
+                frames = [np.array(Image.new('RGB', (width, height), color='blue'))] * num_frames
+                return ImageSequenceClip(frames, fps=fps)
 
-def run_gui(system):
-    # ... (keep as is, for local testing)
+            # Add your anatomical and manim logic here if needed
+            # For now: placeholder
+            frames = [np.array(Image.new('RGB', (width, height), color='green'))] * num_frames
+            return ImageSequenceClip(frames, fps=fps)
 
-@app.route('/')
-def index():
-    return "MedAnimVR running - upload a PDF via /upload or use GUI locally."
+        except Exception as e:
+            logging.error(f"Error creating scene clip: {e}")
+            frames = [np.array(Image.new('RGB', (width, height), color='red'))] * num_frames
+            return ImageSequenceClip(frames, fps=fps)
 
-@app.route('/upload', methods=['POST'])
-def upload_pdf():
-    return jsonify({"message": "Upload endpoint ready - implement file handling as needed"})
+    # Add back other methods as needed (generate_scene_audio, create_animated_video, process_book, etc.)
 
 if __name__ == "__main__":
     system = MedicalAnimationSystem(api_key=os.getenv('OPENAI_API_KEY', 'your_api_key_here'))
-    # run_gui(system)  # Uncomment for local GUI
     port = int(os.getenv('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
