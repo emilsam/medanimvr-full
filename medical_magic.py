@@ -6,15 +6,22 @@ import hashlib
 import logging
 import pdfplumber
 from rdkit import Chem
-from rdkit.Chem import Draw, AllChem
-from Bio import PDB, SeqIO
+from rdkit.Chem import AllChem
+from Bio import PDB
 from Bio.PDB import PDBList
 try:
     from moviepy.editor import VideoFileClip, AudioFileClip, ImageSequenceClip, concatenate_videoclips, CompositeVideoClip, TextClip
     from moviepy.video.tools.subtitles import SubtitlesClip
     from moviepy.audio.fx.all import audio_fadein, audio_fadeout
+    MOVIEPY_AVAILABLE = True
 except ImportError as e:
-    logging.error(f"MoviePy import error: {e}. Install with pip install moviepy.")
+    logging.error(f"MoviePy import failed: {e}. Using fallback clips.")
+    class DummyClip:
+        pass
+    VideoFileClip = AudioFileClip = ImageSequenceClip = concatenate_videoclips = CompositeVideoClip = TextClip = DummyClip
+    SubtitlesClip = DummyClip
+    MOVIEPY_AVAILABLE = False
+
 import manim
 import subprocess
 import tempfile
@@ -27,23 +34,10 @@ import openai
 import PySimpleGUI as sg
 from pydub import AudioSegment
 from flask import Flask, request, render_template, jsonify, send_file
-import sentry_sdk
-from sentry_sdk.integrations.flask import FlaskIntegration
-import stripe
-import boto3
-import firebase_admin
-from firebase_admin import credentials
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 app = Flask(__name__)
-# sentry_sdk.init(  # Disabled to prevent startup crash - add real DSN in Render Environment vars later if needed
-#     dsn=os.getenv('SENTRY_DSN', 'your-sentry-dsn'),
-#     integrations=[FlaskIntegration()],
-#     traces_sample_rate=1.0,
-#     environment="production"
-# )
-# If you want Sentry later, set a real DSN in Render Environment vars
 
 class MedicalAnimationSystem:
     def __init__(self, api_key: str, output_dir: str = "animated_videos"):
@@ -57,13 +51,10 @@ class MedicalAnimationSystem:
         self.script_cache = self.manager.dict()
         self.bgm_path = os.path.join(self.output_dir, "bgm.mp3")
         self._download_bgm()
-        self.stripe = stripe
         self.watermark_text = os.getenv('WATERMARK_TEXT', 'Powered by MedicalAnimSys')
         self.watermark_font_size = int(os.getenv('WATERMARK_FONT_SIZE', '24'))
         self.ar_manifest = {}
         self.s3_client = boto3.client('s3')
-        cred = credentials.Certificate(os.getenv('FIREBASE_CREDENTIALS_PATH'))
-        firebase_admin.initialize_app(cred)
 
     def _download_bgm(self):
         if not os.path.exists(self.bgm_path):
@@ -143,7 +134,7 @@ class MedicalAnimationSystem:
             extra = {
                 'molecular': "Include SMILES strings in 'extras' for molecules.",
                 'cellular': "Include PDB IDs or sequences in 'extras' for cellular components.",
-                'anatomical': "Include anatomical models in 'extras' for Blender/Molecular Nodes with VR/AR metadata (e.g., organ names, grab points, animation triggers)."
+                'anatomical': "Include anatomical models in 'extras' for Blender with VR/AR metadata."
             }.get(level, "")
             prompt = f"""
             Generate animation script for {level} level from: '{text}'
@@ -222,12 +213,7 @@ class MedicalAnimationSystem:
             logging.error(f"Error generating Blender script: {e}")
             return ""
 
-    def generate_pymol_frames(self, extras: str, visuals: str, duration: int, scene_index: int) -> List[str]:
-        # PyMOL completely disabled in cloud environment
-        logging.warning("PyMOL disabled in cloud - using placeholder clip")
-        return []  # Returns empty list → triggers blue placeholder in create_scene_clip
-
-    def create_scene_clip(self, scene: Dict, level: str, scene_index: int, language: str, resolution: str = '4k') -> VideoFileClip:
+    def create_scene_clip(self, scene: Dict, level: str, scene_index: int, language: str, resolution: str = '4k'):
         try:
             extras = scene.get('extras', '')
             res_map = {'4k': (3840, 2160), '1080p': (1920, 1080)}
@@ -236,15 +222,9 @@ class MedicalAnimationSystem:
             num_frames = scene['duration'] * fps
 
             if level in ['molecular', 'cellular']:
-                frame_paths = self.generate_pymol_frames(extras, scene['visuals'], scene['duration'], scene_index)
-                if frame_paths:
-                    clip = ImageSequenceClip(frame_paths, fps=fps).resize((width, height))
-                    return clip
-                else:
-                    # Placeholder when PyMOL is disabled
-                    logging.info("Using blue placeholder for molecular/cellular scene")
-                    frames = [np.array(Image.new('RGB', (width, height), color='blue'))] * num_frames
-                    return ImageSequenceClip(frames, fps=fps)
+                logging.info("Using placeholder for molecular/cellular scene (PyMOL disabled)")
+                frames = [np.array(Image.new('RGB', (width, height), color='blue'))] * num_frames
+                return ImageSequenceClip(frames, fps=fps)
 
             elif level == 'anatomical':
                 blender_code = self.generate_blender_script(scene)
@@ -260,7 +240,7 @@ class MedicalAnimationSystem:
                         result = subprocess.run(['/blender/blender', '-b', '-P', temp_path], capture_output=True, timeout=600)
                         if result.returncode != 0:
                             logging.error(f"Blender failed: {result.stderr.decode()}")
-                            raise RuntimeError(f"Blender failed")
+                            raise RuntimeError("Blender failed")
                         frame_paths = [os.path.join(temp_dir, f'frame_{i:04d}.png') for i in range(1, num_frames + 1)]
                         frame_paths = [p for p in frame_paths if os.path.exists(p)]
                         if frame_paths:
@@ -443,12 +423,17 @@ def run_gui(system):
                 window['-STATUS-'].update(f"Error: {e}")
     window.close()
 
-# Flask Routes (basic - add more as needed)
+# Flask Routes
 @app.route('/')
 def index():
-    return "MedAnimVR running"
+    return "MedAnimVR running - upload a PDF via /upload or use GUI locally."
+
+@app.route('/upload', methods=['POST'])
+def upload_pdf():
+    return jsonify({"message": "Upload endpoint ready - implement file handling as needed"})
 
 if __name__ == "__main__":
     system = MedicalAnimationSystem(api_key=os.getenv('OPENAI_API_KEY', 'your_api_key_here'))
-    # run_gui(system)  # Uncomment if you want GUI locally
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
+    # run_gui(system)  # Uncomment for local GUI testing
+    port = int(os.getenv('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
