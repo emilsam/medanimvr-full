@@ -24,16 +24,10 @@ except ImportError as e:
     SubtitlesClip = DummyClip
     MOVIEPY_AVAILABLE = False
 
-import manim
-import subprocess
-import tempfile
-from gtts import gTTS
-import librosa
-import requests
 import numpy as np
 from PIL import Image
 import openai
-from flask import Flask, request, jsonify
+from flask import Flask, request
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -45,34 +39,24 @@ class MedicalAnimationSystem:
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
         os.makedirs(os.path.join(output_dir, "ar_assets"), exist_ok=True)
-        self.llm_client = openai.OpenAI(api_key=self.api_key)
-        self.web_search_client = requests
-        self.manager = multiprocessing.Manager()
-        self.script_cache = self.manager.dict()
+        self.llm_client = openai.OpenAI(api_key=self.api_key) if api_key else None
         self.watermark_text = os.getenv('WATERMARK_TEXT', 'Powered by MedicalAnimSys')
-        self.watermark_font_size = int(os.getenv('WATERMARK_FONT_SIZE', '24'))
-        self.ar_manifest = {}
 
     def extract_book_structure(self, pdf_path: str) -> Dict:
-        if not os.path.exists(pdf_path):
-            raise FileNotFoundError(f"PDF not found: {pdf_path}")
+        logging.info(f"Extracting structure from {pdf_path}")
         try:
             with pdfplumber.open(pdf_path) as pdf:
                 full_text = "".join(page.extract_text() or "" for page in pdf.pages)
-            prompt = f"""
-            Extract book structure (chapters, headings, subheadings) from:
-            Text: {full_text[:10000]}
-            Output as JSON: {{"chapter": {{"heading": ["subheading1", "subheading2"]}}}}
-            """
-            response = self.llm_client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
-            structure = json.loads(response.choices[0].message.content)
-            return structure
+            # Fake structure for testing (replace with real GPT when quota fixed)
+            return {
+                "Chapter 1": {"Introduction": ["Basics"]}
+            }
         except Exception as e:
-            logging.error(f"Error extracting structure: {e}")
-            return {}
+            logging.error(f"Structure extraction failed: {e}")
+            return {"Chapter 1": {"Test": ["Section"]}}
 
     def process_book(self, pdf_path: str, languages: List[str] = ['en'], num_processes: int = 1, resolution: str = '1080p'):
-        logging.info(f"Starting process_book for {pdf_path} with languages={languages}, resolution={resolution}")
+        logging.info(f"Starting process_book: {pdf_path}")
         try:
             structure = self.extract_book_structure(pdf_path)
             sections = []
@@ -82,48 +66,36 @@ class MedicalAnimationSystem:
                     for sub in subheadings:
                         sections.append((pdf_path, chapter, f"{heading} - {sub}"))
 
-            logging.info(f"Found {len(sections)} sections to process")
+            logging.info(f"Processing {len(sections)} sections (first only for test)")
 
-            # Process only the first section for quick testing
             if sections:
                 pdf_path, chapter, section = sections[0]
-                text = self.extract_section_text(pdf_path, section)  # You need to implement this
-                levels = ['molecular', 'cellular', 'anatomical']
-                for level in levels:
-                    script = self.generate_animation_script(text, level, 'en')  # You need to implement this
-                    topic = f"{chapter} - {section}"
-                    for lang in languages:
-                        video_path = self.create_animated_video(script, topic, level, lang, resolution)  # You need to implement this
-                        logging.info(f"Generated video: {video_path}")
-            else:
-                logging.warning("No sections found in book structure")
-
+                text = "Test medical text for animation."  # Replace with real extraction
+                level = 'anatomical'  # Test with anatomical
+                script = {"scenes": [{"description": "Test scene", "duration": 5, "visuals": "anatomy", "extras": "", "narration": "Hello world"}]}
+                topic = f"{chapter} - {section}"
+                for lang in languages:
+                    video_path = self.create_animated_video(script, topic, level, lang, resolution)
+                    logging.info(f"Generated test video: {video_path}")
             logging.info("process_book completed")
         except Exception as e:
             logging.error(f"process_book failed: {str(e)}", exc_info=True)
             raise
 
-    def create_scene_clip(self, scene: Dict, level: str, scene_index: int, language: str, resolution: str = '4k'):
+    def create_animated_video(self, script: Dict, topic: str, level: str, language: str, resolution: str) -> str:
+        logging.info(f"Creating animated video for {topic} - {level}")
         try:
-            extras = scene.get('extras', '')
-            res_map = {'4k': (3840, 2160), '1080p': (1920, 1080)}
-            width, height = res_map.get(resolution, (3840, 2160))
-            fps = 24
-            num_frames = scene['duration'] * fps
-
-            if level in ['molecular', 'cellular']:
-                logging.info("Using placeholder for molecular/cellular scene (PyMOL disabled)")
-                frames = [np.array(Image.new('RGB', (width, height), color='blue'))] * num_frames
-                return ImageSequenceClip(frames, fps=fps)
-
-            # Placeholder for other levels (add Blender/Manim logic later)
-            frames = [np.array(Image.new('RGB', (width, height), color='green'))] * num_frames
-            return ImageSequenceClip(frames, fps=fps)
-
+            # Simple placeholder video
+            width, height = (1920, 1080) if resolution == '1080p' else (3840, 2160)
+            frames = [np.array(Image.new('RGB', (width, height), color='green')) for _ in range(120)]  # 5 seconds @ 24 fps
+            clip = ImageSequenceClip(frames, fps=24)
+            video_path = os.path.join(self.output_dir, f"{topic.replace(' ', '_')}_{level}_{language}_{resolution}.mp4")
+            clip.write_videofile(video_path, codec='libx264', fps=24)
+            logging.info(f"Video written to {video_path}")
+            return video_path
         except Exception as e:
-            logging.error(f"Error creating scene clip: {e}")
-            frames = [np.array(Image.new('RGB', (width, height), color='red'))] * num_frames
-            return ImageSequenceClip(frames, fps=fps)
+            logging.error(f"Video creation failed: {e}")
+            return ""
 
 # Flask Routes
 @app.route('/')
