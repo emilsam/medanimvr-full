@@ -1,62 +1,46 @@
 import os
 import json
 from typing import List, Dict
-import multiprocessing
-import hashlib
 import logging
 import pdfplumber
-from rdkit import Chem
-from rdkit.Chem import AllChem
-from Bio import PDB
-from Bio.PDB import PDBList
+import numpy as np
+from PIL import Image
+from flask import Flask, request
 
 # Safe MoviePy import with fallback
 try:
-    from moviepy.editor import VideoFileClip, AudioFileClip, ImageSequenceClip, concatenate_videoclips, CompositeVideoClip, TextClip
-    from moviepy.video.tools.subtitles import SubtitlesClip
-    from moviepy.audio.fx.all import audio_fadein, audio_fadeout
+    from moviepy.editor import ImageSequenceClip
     MOVIEPY_AVAILABLE = True
 except ImportError as e:
     logging.error(f"MoviePy import failed: {e}. Using fallback clips.")
     class DummyClip:
         pass
-    VideoFileClip = AudioFileClip = ImageSequenceClip = concatenate_videoclips = CompositeVideoClip = TextClip = DummyClip
-    SubtitlesClip = DummyClip
+    ImageSequenceClip = DummyClip
     MOVIEPY_AVAILABLE = False
-
-import numpy as np
-from PIL import Image
-import openai
-from flask import Flask, request
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 app = Flask(__name__)
 
 class MedicalAnimationSystem:
-    def __init__(self, api_key: str, output_dir: str = "animated_videos"):
+    def __init__(self, api_key: str = None, output_dir: str = "animated_videos"):
         self.api_key = api_key
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
-        os.makedirs(os.path.join(output_dir, "ar_assets"), exist_ok=True)
-        self.llm_client = openai.OpenAI(api_key=self.api_key) if api_key else None
-        self.watermark_text = os.getenv('WATERMARK_TEXT', 'Powered by MedicalAnimSys')
 
     def extract_book_structure(self, pdf_path: str) -> Dict:
         logging.info(f"Extracting structure from {pdf_path}")
         try:
             with pdfplumber.open(pdf_path) as pdf:
                 full_text = "".join(page.extract_text() or "" for page in pdf.pages)
-            # Fake structure for testing (replace with real GPT when quota fixed)
-            return {
-                "Chapter 1": {"Introduction": ["Basics"]}
-            }
+            # Stub - return fake structure
+            return {"Chapter 1": {"Introduction": ["Basics"]}}
         except Exception as e:
             logging.error(f"Structure extraction failed: {e}")
             return {"Chapter 1": {"Test": ["Section"]}}
 
     def process_book(self, pdf_path: str, languages: List[str] = ['en'], num_processes: int = 1, resolution: str = '1080p'):
-        logging.info(f"Starting process_book: {pdf_path}")
+        logging.info(f"Starting process_book for {pdf_path} (languages={languages}, resolution={resolution})")
         try:
             structure = self.extract_book_structure(pdf_path)
             sections = []
@@ -66,38 +50,46 @@ class MedicalAnimationSystem:
                     for sub in subheadings:
                         sections.append((pdf_path, chapter, f"{heading} - {sub}"))
 
-            logging.info(f"Processing {len(sections)} sections (first only for test)")
+            logging.info(f"Found {len(sections)} sections")
 
+            # Process only first section for test
             if sections:
                 pdf_path, chapter, section = sections[0]
-                text = "Test medical text for animation."  # Replace with real extraction
-                level = 'anatomical'  # Test with anatomical
-                script = {"scenes": [{"description": "Test scene", "duration": 5, "visuals": "anatomy", "extras": "", "narration": "Hello world"}]}
+                logging.info(f"Processing section: {chapter} - {section}")
+
+                # Fake text and script
+                text = "This is a test medical text for animation."
+                script = {
+                    "scenes": [
+                        {"description": "Test scene", "duration": 5, "visuals": "anatomy", "extras": "", "narration": "Hello from MedAnimVR"}
+                    ]
+                }
                 topic = f"{chapter} - {section}"
                 for lang in languages:
-                    video_path = self.create_animated_video(script, topic, level, lang, resolution)
-                    logging.info(f"Generated test video: {video_path}")
+                    video_path = self.create_animated_video(script, topic, 'anatomical', lang, resolution)
+                    logging.info(f"Generated video: {video_path}")
+            else:
+                logging.warning("No sections found")
+
             logging.info("process_book completed")
         except Exception as e:
             logging.error(f"process_book failed: {str(e)}", exc_info=True)
             raise
 
     def create_animated_video(self, script: Dict, topic: str, level: str, language: str, resolution: str) -> str:
-        logging.info(f"Creating animated video for {topic} - {level}")
+        logging.info(f"Creating video for {topic} - {level} - {language}")
         try:
-            # Simple placeholder video
             width, height = (1920, 1080) if resolution == '1080p' else (3840, 2160)
-            frames = [np.array(Image.new('RGB', (width, height), color='green')) for _ in range(120)]  # 5 seconds @ 24 fps
+            frames = [np.array(Image.new('RGB', (width, height), color='green')) for _ in range(120)]  # 5 sec @ 24fps
             clip = ImageSequenceClip(frames, fps=24)
             video_path = os.path.join(self.output_dir, f"{topic.replace(' ', '_')}_{level}_{language}_{resolution}.mp4")
             clip.write_videofile(video_path, codec='libx264', fps=24)
-            logging.info(f"Video written to {video_path}")
+            logging.info(f"Video saved: {video_path}")
             return video_path
         except Exception as e:
             logging.error(f"Video creation failed: {e}")
-            return ""
+            return "failed"
 
-# Flask Routes
 @app.route('/')
 def index():
     return """
@@ -135,7 +127,7 @@ def upload_pdf():
             return f"""
             <h1>Success!</h1>
             <p>PDF uploaded and processing finished: {file.filename}</p>
-            <p>Check Render Logs for output paths (search for "animated_videos" or video files).</p>
+            <p>Check Render Logs for output paths (search for "Generated video" or "animated_videos").</p>
             <a href="/">Back to upload</a>
             """, 200
         except Exception as e:
