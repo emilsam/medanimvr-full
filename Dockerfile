@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     build-essential meson ninja-build \
     && rm -rf /var/lib/apt/lists/*
 
+# Create virtual environment
 RUN python3 -m venv /app/venv
 ENV PATH="/app/venv/bin:$PATH"
 
@@ -16,6 +17,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install Blender (your existing lines)
 ENV BLENDER_VERSION=4.2.2
 RUN wget https://download.blender.org/release/Blender${BLENDER_VERSION%.*}/blender-${BLENDER_VERSION}-linux-x64.tar.xz \
     && tar -xf blender-${BLENDER_VERSION}-linux-x64.tar.xz \
