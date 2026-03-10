@@ -79,7 +79,14 @@ class MedicalAnimationSystem:
             clip = ImageSequenceClip(frames, fps=24)
 
             buffer = BytesIO()
-            clip.write_videofile(buffer, codec='libx264', audio_codec='aac', fps=24, logger=None, verbose=False)
+            # Removed verbose=False — not supported in all versions
+            clip.write_videofile(
+                buffer,
+                codec='libx264',
+                audio_codec='aac',
+                fps=24,
+                logger=None  # This reduces output in older versions
+            )
             buffer.seek(0)
             logging.info("Video generated in memory")
             return buffer
