@@ -136,7 +136,7 @@ def upload_pdf():
 
     system = MedicalAnimationSystem(os.getenv('OPENAI_API_KEY'))
     try:
-        system.process_book(pdf_path, languages=['en'], num_processes=1, resolution='1080p')
+#        system.process_book(pdf_path, languages=['en'], num_processes=1, resolution='1080p')
         return f"""
         <h1>Success!</h1>
         <p>Processed: {file.filename}</p>
