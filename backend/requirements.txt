@@ -1,6 +1,8 @@
 pdfplumber
 openai
+numpy
 moviepy
+imageio-ffmpeg   # ← important for moviepy on Render / Linux
 manim
 rdkit
 biopython
