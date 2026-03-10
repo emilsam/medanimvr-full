@@ -119,7 +119,7 @@ def index():
     <html>
     <head><title>MedAnimVR</title></head>
     <body style="font-family:Arial; text-align:center; padding:50px;">
-        <h1>MedAnimVR is Running! 🚀</h1>
+        <h1>MedAnimVR is Running! </h1>
         <p>Upload a small PDF to generate animations.</p>
         <form method="post" enctype="multipart/form-data" action="/upload">
             <input type="file" name="pdf" accept=".pdf" required><br><br>
