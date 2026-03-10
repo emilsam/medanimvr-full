@@ -1,11 +1,11 @@
 import os
-import json
-from typing import List, Dict
 import logging
+from typing import List, Dict
 import pdfplumber
 import numpy as np
 from PIL import Image
-from flask import Flask, request
+from flask import Flask, request, send_file
+from io import BytesIO
 
 # Safe MoviePy import with fallback
 try:
@@ -23,10 +23,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 app = Flask(__name__)
 
 class MedicalAnimationSystem:
-    def __init__(self, api_key: str = None, output_dir: str = "animated_videos"):
+    def __init__(self, api_key: str = None):
         self.api_key = api_key
-        self.output_dir = output_dir
-        os.makedirs(output_dir, exist_ok=True)
+        # No output_dir anymore — we generate in memory
 
     def extract_book_structure(self, pdf_path: str) -> Dict:
         logging.info(f"Extracting structure from {pdf_path}")
@@ -56,52 +55,63 @@ class MedicalAnimationSystem:
 
             logging.info(f"Found {len(sections)} sections")
 
-            # Process only first section for speed
-            if sections:
-                pdf_path, chapter, section = sections[0]
-                logging.info(f"Processing section: {chapter} - {section}")
+            if not sections:
+                raise ValueError("No sections found in PDF structure")
 
-                # Fake script
-                script = {
-                    "scenes": [
-                        {
-                            "description": "Test scene",
-                            "duration": 5,
-                            "visuals": "placeholder anatomy",
-                            "extras": "",
-                            "narration": "This is a test narration"
-                        }
-                    ]
-                }
+            # Process only first section for speed / testing
+            pdf_path, chapter, section = sections[0]
+            logging.info(f"Processing section: {chapter} - {section}")
 
-                topic = f"{chapter} - {section}"
-                for lang in languages:
-                    video_path = self.create_animated_video(script, topic, 'anatomical', lang, resolution)
-                    logging.info(f"Generated video: {video_path}")
+            # Fake script (replace later with real content)
+            script = {
+                "scenes": [
+                    {
+                        "description": "Test scene",
+                        "duration": 5,
+                        "visuals": "placeholder anatomy",
+                        "extras": "",
+                        "narration": "This is a test narration"
+                    }
+                ]
+            }
 
-            else:
-                logging.warning("No sections found in structure")
+            topic = f"{chapter} - {section}"
+            # We only generate one video for the first language for simplicity
+            video_buffer = self.create_animated_video_in_memory(script, topic, 'anatomical', languages[0], resolution)
+            return video_buffer
 
-            logging.info("process_book finished")
         except Exception as e:
             logging.error(f"process_book failed: {str(e)}", exc_info=True)
             raise
 
-    def create_animated_video(self, script: Dict, topic: str, level: str, language: str, resolution: str) -> str:
-        logging.info(f"Creating video: {topic} - {level} - {language} - {resolution}")
+    def create_animated_video_in_memory(self, script: Dict, topic: str, level: str, language: str, resolution: str) -> BytesIO:
+        logging.info(f"Creating video in memory: {topic} - {level} - {language} - {resolution}")
         try:
             width = 1920 if resolution == '1080p' else 3840
             height = 1080 if resolution == '1080p' else 2160
-            # 5 seconds green video
+
+            # Your current 5-second green placeholder (120 frames @ 24 fps = 5 s)
             frames = [np.array(Image.new('RGB', (width, height), color='green')) for _ in range(120)]
             clip = ImageSequenceClip(frames, fps=24)
-            video_path = os.path.join(self.output_dir, f"{topic.replace(' ', '_')}_{level}_{language}_{resolution}.mp4")
-            clip.write_videofile(video_path, codec='libx264', fps=24, logger=None)
-            logging.info(f"Video saved to: {video_path}")
-            return video_path
+
+            # Write directly to memory buffer
+            buffer = BytesIO()
+            clip.write_videofile(
+                buffer,
+                codec='libx264',
+                audio_codec='aac',      # safe even without audio
+                fps=24,
+                logger=None,
+                verbose=False
+            )
+            buffer.seek(0)
+            logging.info("Video generated in memory successfully")
+            return buffer
+
         except Exception as e:
             logging.error(f"Video creation failed: {str(e)}")
-            return ""
+            raise
+
 
 @app.route('/')
 def index():
@@ -110,47 +120,64 @@ def index():
     <head><title>MedAnimVR</title></head>
     <body style="font-family:Arial; text-align:center; padding:50px;">
         <h1>MedAnimVR is Running! 🚀</h1>
-        <p>Upload a small PDF to generate animations (currently placeholder green video).</p>
+        <p>Upload a small PDF to generate animations.</p>
         <form method="post" enctype="multipart/form-data" action="/upload">
             <input type="file" name="pdf" accept=".pdf" required><br><br>
-            <input type="submit" value="Upload & Process" style="padding:12px 24px; font-size:18px;">
+            <input type="submit" value="Upload & Download Animation" style="padding:12px 24px; font-size:18px;">
         </form>
-        <p><small>After upload, check Render Logs for lines containing "Generated video" or "/animated_videos".</small></p>
     </body>
     </html>
     """
+
 
 @app.route('/upload', methods=['POST'])
 def upload_pdf():
     if 'pdf' not in request.files:
         return "No file uploaded", 400
+
     file = request.files['pdf']
     if file.filename == '':
         return "No file selected", 400
     if not file.filename.lower().endswith('.pdf'):
         return "File must be .pdf", 400
 
+    # Save uploaded file temporarily (Render allows /tmp)
     pdf_path = os.path.join('/tmp', file.filename)
     file.save(pdf_path)
-    logging.info(f"PDF saved: {pdf_path}")
+    logging.info(f"PDF saved temporarily: {pdf_path}")
 
     system = MedicalAnimationSystem(os.getenv('OPENAI_API_KEY'))
+
     try:
-#        system.process_book(pdf_path, languages=['en'], num_processes=1, resolution='1080p')
-        return f"""
-        <h1>Success!</h1>
-        <p>Processed: {file.filename}</p>
-        <p>A test video was generated. Check Render Logs for the path (search for "Generated video" or "animated_videos").</p>
-        <a href="/">Back to upload</a>
-        """, 200
+        video_buffer = system.process_book(
+            pdf_path=pdf_path,
+            languages=['en'],
+            num_processes=1,
+            resolution='1080p'
+        )
+
+        # Clean up the temporary PDF
+        try:
+            os.remove(pdf_path)
+        except:
+            pass
+
+        # Return the video as download
+        return send_file(
+            video_buffer,
+            mimetype='video/mp4',
+            as_attachment=True,
+            download_name='animated_test.mp4'
+        )
+
     except Exception as e:
         logging.error(f"Processing failed: {str(e)}", exc_info=True)
         return f"""
         <h1>Processing Failed</h1>
         <p>Error: {str(e)}</p>
-        <p>See Render Logs for details.</p>
         <a href="/">Back to upload</a>
         """, 500
+
 
 if __name__ == "__main__":
     port = int(os.getenv('PORT', 5000))
