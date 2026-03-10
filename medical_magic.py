@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image
 from flask import Flask, request, send_file
 from io import BytesIO
+import tempfile
 
 # Safe MoviePy import with fallback
 try:
@@ -71,24 +72,33 @@ class MedicalAnimationSystem:
             raise
 
     def create_animated_video_in_memory(self, script: Dict, topic: str, level: str, language: str, resolution: str) -> BytesIO:
-        logging.info(f"Creating video in memory: {topic}")
+        logging.info(f"Creating video: {topic}")
         try:
             width = 1920 if resolution == '1080p' else 3840
             height = 1080 if resolution == '1080p' else 2160
             frames = [np.array(Image.new('RGB', (width, height), color='green')) for _ in range(120)]
             clip = ImageSequenceClip(frames, fps=24)
 
-            buffer = BytesIO()
-            # Removed verbose=False — not supported in all versions
-            clip.write_videofile(
-                buffer,
-                codec='libx264',
-                audio_codec='aac',
-                fps=24,
-                logger=None  # This reduces output in older versions
-            )
+            # Write to temporary file (moviepy requires a path)
+            with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as tmp_file:
+                temp_path = tmp_file.name
+                clip.write_videofile(
+                    temp_path,
+                    codec='libx264',
+                    audio_codec='aac',
+                    fps=24,
+                    logger=None
+                )
+
+            # Read into memory buffer
+            with open(temp_path, 'rb') as f:
+                buffer = BytesIO(f.read())
             buffer.seek(0)
-            logging.info("Video generated in memory")
+
+            # Clean up temp file
+            os.remove(temp_path)
+
+            logging.info("Video generated and loaded into memory")
             return buffer
         except Exception as e:
             logging.error(f"Video creation failed: {str(e)}")
