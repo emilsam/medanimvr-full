@@ -115,7 +115,7 @@ class MedicalAnimationSystem:
 
 @app.route('/')
 def index():
-    return """
+    return "Test - app is alive on Railway"
     <html>
     <head><title>MedAnimVR</title></head>
     <body style="font-family:Arial; text-align:center; padding:50px;">
