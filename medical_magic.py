@@ -115,7 +115,7 @@ class MedicalAnimationSystem:
 
 @app.route('/')
 def index():
-    return "Test - app is alive on Railway"
+    return "<h1>Test page - no 502!</h1><p>If you see this, the root route is working.</p>"
     <html>
     <head><title>MedAnimVR</title></head>
     <body style="font-family:Arial; text-align:center; padding:50px;">
@@ -123,8 +123,9 @@ def index():
         <p>Upload a small PDF to generate animations.</p>
         <form method="post" enctype="multipart/form-data" action="/upload">
             <input type="file" name="pdf" accept=".pdf" required><br><br>
-            <input type="submit" value="Upload & Download Animation" style="padding:12px 24px; font-size:18px;">
+            <input type="submit" value="Upload & Process" style="padding:12px 24px; font-size:18px;">
         </form>
+        <p><small>After upload, check Render Logs for lines containing "Generated video" or "/animated_videos".</small></p>
     </body>
     </html>
     """
