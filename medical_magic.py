@@ -9,7 +9,7 @@ from flask import Flask, request, send_file
 from io import BytesIO
 import tempfile
 
-# Safe MoviePy import with fallback 
+# Safe MoviePy import with fallback
 try:
     from moviepy.editor import ImageSequenceClip
     MOVIEPY_AVAILABLE = True
@@ -147,7 +147,7 @@ def upload_pdf():
         logging.error(f"Processing failed: {str(e)}", exc_info=True)
         return f"<h1>Error</h1><p>{str(e)}</p><a href='/'>Back</a>", 500
 
+# Only used for local development — Railway uses Gunicorn via Dockerfile CMD
 if __name__ == "__main__":
-    # For local dev only — Railway will use Gunicorn instead
-    port = int(os.environ.get("PORT", 8080))  # fallback 8080 ok for local
-    app.run(host="0.0.0.0", port=port, debug=True)  # debug=True helps see errors
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port, debug=True)
