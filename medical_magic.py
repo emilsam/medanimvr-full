@@ -148,5 +148,6 @@ def upload_pdf():
         return f"<h1>Error</h1><p>{str(e)}</p><a href='/'>Back</a>", 500
 
 if __name__ == "__main__":
-    port = int(os.getenv('PORT', 5000))
-    app.run(host='0.0.0.0', port=8080, debug=False)
+    # For local dev only — Railway will use Gunicorn instead
+    port = int(os.environ.get("PORT", 8080))  # fallback 8080 ok for local
+    app.run(host="0.0.0.0", port=port, debug=True)  # debug=True helps see errors
