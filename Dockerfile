@@ -1,29 +1,30 @@
 FROM ubuntu:22.04
 
-RUN apt-get update && apt-get install -y \
+# Install system dependencies (keep minimal — remove unused ones if possible)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip python3-venv wget \
-    pkg-config libcairo2-dev libpango1.0-dev libgdk-pixbuf2.0-dev \
-    libxi6 libgconf-2-4 libxrender1 libxext6 \
-    libgl1-mesa-glx libfontconfig1 libdbus-glib-1-2 libxt6 \
-    ffmpeg libavcodec-dev libavformat-dev libswscale-dev \
-    build-essential meson ninja-build \
+    ffmpeg libfontconfig1 libgl1-mesa-glx \
     && rm -rf /var/lib/apt/lists/*
 
-# Create virtual environment
+# Create venv early
 RUN python3 -m venv /app/venv
 ENV PATH="/app/venv/bin:$PATH"
 
 WORKDIR /app
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Blender (your existing lines)
-ENV BLENDER_VERSION=4.2.2
-RUN wget https://download.blender.org/release/Blender${BLENDER_VERSION%.*}/blender-${BLENDER_VERSION}-linux-x64.tar.xz \
-    && tar -xf blender-${BLENDER_VERSION}-linux-x64.tar.xz \
-    && mv blender-${BLENDER_VERSION}-linux-x64 /blender \
-    && rm blender-${BLENDER_VERSION}-linux-x64.tar.xz
+# Optional: Blender — only if actually needed right now (it's huge!)
+# ENV BLENDER_VERSION=4.2.2
+# RUN wget https://download.blender.org/release/Blender${BLENDER_VERSION%.*}/blender-${BLENDER_VERSION}-linux-x64.tar.xz \
+#     && tar -xf blender-${BLENDER_VERSION}-linux-x64.tar.xz \
+#     && mv blender-${BLENDER_VERSION}-linux-x64 /blender \
+#     && rm blender-${BLENDER_VERSION}-linux-x64.tar.xz
 
 COPY . .
 
-CMD ["/app/venv/bin/python", "medical_magic.py"]
+# Use shell form CMD → allows $PORT expansion + easier debugging
+# Run with gunicorn for production (recommended on Railway)
+# Adjust "medical_magic:app" → your module name + Flask instance name
+CMD gunicorn medical_magic:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
