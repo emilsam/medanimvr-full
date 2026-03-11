@@ -4,6 +4,7 @@ FROM ubuntu:22.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip python3-venv wget \
     ffmpeg libfontconfig1 libgl1-mesa-glx \
+    build-essential python3-dev libssl-dev libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Create venv early
