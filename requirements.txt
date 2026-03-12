@@ -1,11 +1,10 @@
 pdfplumber
 openai
 numpy
-moviepy==2.0.0.dev2  # or moviepy==1.0.3 if 2.0 fails; test locally first
-imageio==2.34.0       # pin compatible imageio
-decorator==4.4.2      # often needed for older compatibility
-imageio-ffmpeg   # ← important for moviepy on Render / Linux
-# manim              # ← commented out to avoid pycairo build failure; re-add later when needed
+moviepy==1.0.3
+imageio==2.34.0
+imageio-ffmpeg
+decorator==4.4.2
 rdkit
 biopython
 requests
@@ -15,8 +14,4 @@ librosa
 PySimpleGUI
 pydub
 flask
-sentry-sdk
-stripe
-firebase-admin
-boto3
 gunicorn
